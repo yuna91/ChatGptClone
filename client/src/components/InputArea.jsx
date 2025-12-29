@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Paperclip, Image, Globe, Send, X, FileText } from 'lucide-react';
+import { Paperclip, Globe, Send, X, FileText } from 'lucide-react';
 
 function InputArea({
   onSend,
@@ -7,7 +7,6 @@ function InputArea({
   attachments,
   onRemoveAttachment,
   isLoading,
-  onShowImageModal,
   webSearchEnabled,
   onToggleWebSearch,
 }) {
@@ -94,14 +93,6 @@ function InputArea({
             </button>
             <button
               type="button"
-              className="input-action-btn"
-              onClick={onShowImageModal}
-              title="Generate image"
-            >
-              <Image size={20} />
-            </button>
-            <button
-              type="button"
               className={`input-action-btn ${webSearchEnabled ? 'active' : ''}`}
               onClick={onToggleWebSearch}
               title={webSearchEnabled ? "Web search ON (click to disable)" : "Web search OFF (click to enable)"}
@@ -113,7 +104,7 @@ function InputArea({
           <textarea
             ref={textareaRef}
             className="message-input"
-            placeholder={webSearchEnabled ? "Ask anything (web search enabled)..." : "Message ChatGPT..."}
+            placeholder={webSearchEnabled ? "Ask anything or say 'generate an image of...' " : "Message ChatGPT..."}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}

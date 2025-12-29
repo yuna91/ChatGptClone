@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import InputArea from './components/InputArea';
-import ImageModal from './components/ImageModal';
 import {
   Menu,
   ChevronDown,
@@ -15,7 +14,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
-  const [showImageModal, setShowImageModal] = useState(false);
+  const [streamingImage, setStreamingImage] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true); // Web search ON by default
 
@@ -116,6 +115,7 @@ function App() {
     setAttachments([]);
     setIsLoading(true);
     setStreamingMessage('');
+    setStreamingImage(null);
 
     try {
       // Chat with streaming (web search enabled by default)
@@ -128,6 +128,7 @@ function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
+      let generatedImage = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -144,11 +145,16 @@ function App() {
                 fullContent += data.content;
                 setStreamingMessage(fullContent);
               }
+              if (data.image) {
+                generatedImage = data.image;
+                setStreamingImage(data.image);
+              }
               if (data.done) {
                 const assistantMessage = {
                   id: data.messageId,
                   role: 'assistant',
                   content: fullContent,
+                  image: generatedImage,
                   createdAt: new Date().toISOString(),
                 };
                 setCurrentChat(prev => ({
@@ -156,6 +162,7 @@ function App() {
                   messages: [...prev.messages, assistantMessage],
                 }));
                 setStreamingMessage('');
+                setStreamingImage(null);
               }
               if (data.error) {
                 console.error('Stream error:', data.error);
@@ -226,8 +233,8 @@ function App() {
           chat={currentChat}
           isLoading={isLoading}
           streamingMessage={streamingMessage}
+          streamingImage={streamingImage}
           onNewChat={createNewChat}
-          onShowImageModal={() => setShowImageModal(true)}
           webSearchEnabled={webSearchEnabled}
           onToggleWebSearch={() => setWebSearchEnabled(!webSearchEnabled)}
         />
@@ -238,15 +245,10 @@ function App() {
           attachments={attachments}
           onRemoveAttachment={removeAttachment}
           isLoading={isLoading}
-          onShowImageModal={() => setShowImageModal(true)}
           webSearchEnabled={webSearchEnabled}
           onToggleWebSearch={() => setWebSearchEnabled(!webSearchEnabled)}
         />
       </div>
-
-      {showImageModal && (
-        <ImageModal onClose={() => setShowImageModal(false)} />
-      )}
     </div>
   );
 }

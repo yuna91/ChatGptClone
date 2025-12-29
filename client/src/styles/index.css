@@ -375,6 +375,18 @@ body {
   gap: 8px;
 }
 
+/* Generated Images */
+.generated-image-container {
+  margin: 12px 0;
+}
+
+.generated-image {
+  max-width: 512px;
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
 /* Input Area */
 .input-area {
   padding: 16px 20px 24px;

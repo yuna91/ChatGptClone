@@ -137,6 +137,21 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   });
 });
 
+// Helper function to detect image generation requests
+function isImageGenerationRequest(message) {
+  const lowerMessage = message.toLowerCase();
+  const imageKeywords = [
+    'generate an image', 'create an image', 'make an image', 'draw', 'generate image',
+    'create image', 'make image', 'generate a picture', 'create a picture',
+    'make a picture', 'generate picture', 'create picture', 'make picture',
+    'generate art', 'create art', 'make art', 'design an image', 'design image',
+    'paint', 'illustrate', 'sketch', 'render an image', 'render image',
+    'show me an image', 'show me a picture', 'visualize', 'depict',
+    'generate a photo', 'create a photo', 'make a photo'
+  ];
+  return imageKeywords.some(keyword => lowerMessage.includes(keyword));
+}
+
 // Send message (streaming with web search enabled by default)
 app.post('/api/chats/:id/messages', async (req, res) => {
   const { message, attachments = [], webSearch = true } = req.body;
@@ -168,6 +183,51 @@ app.post('/api/chats/:id/messages', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
 
   try {
+    // Check if this is an image generation request
+    if (isImageGenerationRequest(message)) {
+      res.write(`data: ${JSON.stringify({ content: 'Generating image...\n\n' })}\n\n`);
+
+      try {
+        const imageResponse = await openai.images.generate({
+          model: 'gpt-image-1',
+          prompt: message,
+          n: 1,
+          size: '1024x1024',
+          quality: 'high',
+        });
+
+        const imageData = imageResponse.data[0].b64_json;
+        const imageUrl = `data:image/png;base64,${imageData}`;
+
+        // Send the image as a special message type
+        res.write(`data: ${JSON.stringify({ image: imageUrl })}\n\n`);
+
+        const assistantContent = `![Generated Image](${imageUrl})`;
+
+        // Save assistant message with image
+        const assistantMessage = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: assistantContent,
+          image: imageUrl,
+          createdAt: new Date().toISOString(),
+        };
+        chat.messages.push(assistantMessage);
+        chat.updatedAt = new Date().toISOString();
+        saveChats(chats);
+
+        res.write(`data: ${JSON.stringify({ done: true, messageId: assistantMessage.id })}\n\n`);
+        res.end();
+        return;
+      } catch (imageError) {
+        console.error('Image generation error:', imageError);
+        res.write(`data: ${JSON.stringify({ content: `Failed to generate image: ${imageError.message}` })}\n\n`);
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        res.end();
+        return;
+      }
+    }
+
     // Build input for Responses API
     const input = [];
 
@@ -274,21 +334,25 @@ app.post('/api/chats/:id/messages', async (req, res) => {
   }
 });
 
-// Generate image
+// Generate image using GPT-image (gpt-image-1)
 app.post('/api/generate-image', async (req, res) => {
-  const { prompt, size = '1024x1024' } = req.body;
+  const { prompt, size = '1024x1024', quality = 'high' } = req.body;
 
   try {
     const response = await openai.images.generate({
-      model: 'dall-e-3',
+      model: 'gpt-image-1',
       prompt,
       n: 1,
       size,
+      quality, // 'low', 'medium', 'high'
     });
 
+    // gpt-image-1 returns base64 data
+    const imageData = response.data[0].b64_json;
+
     res.json({
-      url: response.data[0].url,
-      revisedPrompt: response.data[0].revised_prompt,
+      imageData: `data:image/png;base64,${imageData}`,
+      revisedPrompt: response.data[0].revised_prompt || prompt,
     });
   } catch (error) {
     console.error('Image generation error:', error);

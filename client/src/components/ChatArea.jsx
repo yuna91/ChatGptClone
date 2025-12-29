@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { User, Bot, Image, Globe, Sparkles, Code, Copy, Check } from 'lucide-react';
+import { User, Bot, Image, Globe, Sparkles, Code, Copy, Check, Download } from 'lucide-react';
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -26,12 +26,29 @@ function CopyButton({ text }) {
   );
 }
 
-function ChatArea({ chat, isLoading, streamingMessage, onNewChat, onShowImageModal, webSearchEnabled, onToggleWebSearch }) {
+function DownloadButton({ imageUrl }) {
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `generated-image-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <button className="copy-btn" onClick={handleDownload} title="Download image">
+      <Download size={16} />
+    </button>
+  );
+}
+
+function ChatArea({ chat, isLoading, streamingMessage, streamingImage, onNewChat, webSearchEnabled, onToggleWebSearch }) {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chat?.messages, streamingMessage]);
+  }, [chat?.messages, streamingMessage, streamingImage]);
 
   // Welcome screen when no chat selected
   if (!chat || chat.messages.length === 0) {
@@ -52,12 +69,12 @@ function ChatArea({ chat, isLoading, streamingMessage, onNewChat, onShowImageMod
               <div className="feature-card-desc">Chat about any topic</div>
             </div>
 
-            <div className="feature-card" onClick={onShowImageModal}>
+            <div className="feature-card" onClick={onNewChat}>
               <div className="feature-card-icon">
                 <Image size={20} />
               </div>
               <div className="feature-card-title">Create an image</div>
-              <div className="feature-card-desc">Generate with DALL-E 3</div>
+              <div className="feature-card-desc">Say "generate an image of..."</div>
             </div>
 
             <div className="feature-card" onClick={onToggleWebSearch}>
@@ -112,10 +129,20 @@ function ChatArea({ chat, isLoading, streamingMessage, onNewChat, onShowImageMod
                   ))}
                 </div>
               )}
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+              {/* Display generated image */}
+              {message.image && (
+                <div className="generated-image-container">
+                  <img src={message.image} alt="Generated" className="generated-image" />
+                </div>
+              )}
+              {/* Only show text content if it's not just the markdown image */}
+              {message.content && !message.content.startsWith('![Generated Image]') && (
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              )}
               {message.role === 'assistant' && (
                 <div className="message-actions">
                   <CopyButton text={message.content} />
+                  {message.image && <DownloadButton imageUrl={message.image} />}
                 </div>
               )}
             </div>
@@ -123,19 +150,26 @@ function ChatArea({ chat, isLoading, streamingMessage, onNewChat, onShowImageMod
         ))}
 
         {/* Streaming message */}
-        {streamingMessage && (
+        {(streamingMessage || streamingImage) && (
           <div className="message">
             <div className="message-avatar assistant">
               <Bot size={18} color="white" />
             </div>
             <div className="message-content">
-              <ReactMarkdown>{streamingMessage}</ReactMarkdown>
+              {streamingImage && (
+                <div className="generated-image-container">
+                  <img src={streamingImage} alt="Generated" className="generated-image" />
+                </div>
+              )}
+              {streamingMessage && !streamingMessage.startsWith('![Generated Image]') && (
+                <ReactMarkdown>{streamingMessage}</ReactMarkdown>
+              )}
             </div>
           </div>
         )}
 
         {/* Loading indicator */}
-        {isLoading && !streamingMessage && (
+        {isLoading && !streamingMessage && !streamingImage && (
           <div className="message">
             <div className="message-avatar assistant">
               <Bot size={18} color="white" />
