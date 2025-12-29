@@ -1,6 +1,30 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { User, Bot, Image, Globe, Sparkles, Code } from 'lucide-react';
+import { User, Bot, Image, Globe, Sparkles, Code, Copy, Check } from 'lucide-react';
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button
+      className={`copy-btn ${copied ? 'copied' : ''}`}
+      onClick={handleCopy}
+      title={copied ? 'Copied!' : 'Copy to clipboard'}
+    >
+      {copied ? <Check size={16} /> : <Copy size={16} />}
+    </button>
+  );
+}
 
 function ChatArea({ chat, isLoading, streamingMessage, onNewChat, onShowImageModal, webSearchEnabled, onToggleWebSearch }) {
   const messagesEndRef = useRef(null);
@@ -89,6 +113,11 @@ function ChatArea({ chat, isLoading, streamingMessage, onNewChat, onShowImageMod
                 </div>
               )}
               <ReactMarkdown>{message.content}</ReactMarkdown>
+              {message.role === 'assistant' && (
+                <div className="message-actions">
+                  <CopyButton text={message.content} />
+                </div>
+              )}
             </div>
           </div>
         ))}
