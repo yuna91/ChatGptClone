@@ -80,7 +80,7 @@ function InputArea({
               ref={fileInputRef}
               onChange={handleFileChange}
               multiple
-              accept="image/*,.txt,.md,.json,.csv,.pdf"
+              accept="image/*,.txt,.md,.json,.csv,.pdf,.docx,.doc,.xlsx,.xls"
               style={{ display: 'none' }}
             />
             <button

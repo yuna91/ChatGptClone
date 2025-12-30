@@ -6,6 +6,9 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const OpenAI = require('openai');
+const pdf = require('pdf-parse');
+const mammoth = require('mammoth');
+const XLSX = require('xlsx');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -238,31 +241,94 @@ app.post('/api/chats/:id/messages', async (req, res) => {
         if (msg.content) {
           content.push({ type: 'input_text', text: msg.content });
         }
-        // Add image attachments
+        // Add attachments
         for (const att of msg.attachments || []) {
+          const filePath = path.join(uploadsDir, att.filename);
+          if (!fs.existsSync(filePath)) continue;
+
+          // Handle images
           if (att.mimetype?.startsWith('image/')) {
-            const imagePath = path.join(uploadsDir, att.filename);
-            if (fs.existsSync(imagePath)) {
-              const imageData = fs.readFileSync(imagePath);
-              const base64Image = imageData.toString('base64');
-              content.push({
-                type: 'input_image',
-                image_url: `data:${att.mimetype};base64,${base64Image}`,
-              });
-            }
-          } else if (att.mimetype?.startsWith('text/') ||
-                     att.originalName?.endsWith('.txt') ||
-                     att.originalName?.endsWith('.md') ||
-                     att.originalName?.endsWith('.json') ||
-                     att.originalName?.endsWith('.csv')) {
-            const filePath = path.join(uploadsDir, att.filename);
-            if (fs.existsSync(filePath)) {
-              const fileContent = fs.readFileSync(filePath, 'utf-8');
+            const imageData = fs.readFileSync(filePath);
+            const base64Image = imageData.toString('base64');
+            content.push({
+              type: 'input_image',
+              source: {
+                type: 'base64',
+                media_type: att.mimetype,
+                data: base64Image,
+              },
+            });
+          }
+          // Handle PDF files
+          else if (att.mimetype === 'application/pdf' || att.originalName?.endsWith('.pdf')) {
+            try {
+              const dataBuffer = fs.readFileSync(filePath);
+              const pdfData = await pdf(dataBuffer);
               content.push({
                 type: 'input_text',
-                text: `[File: ${att.originalName}]\n${fileContent}`,
+                text: `[PDF File: ${att.originalName}]\n${pdfData.text}`,
+              });
+            } catch (err) {
+              console.error('Error parsing PDF:', err);
+              content.push({
+                type: 'input_text',
+                text: `[PDF File: ${att.originalName}]\n(Error: Could not extract text from PDF)`,
               });
             }
+          }
+          // Handle DOCX files
+          else if (att.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                   att.originalName?.endsWith('.docx')) {
+            try {
+              const result = await mammoth.extractRawText({ path: filePath });
+              content.push({
+                type: 'input_text',
+                text: `[Word Document: ${att.originalName}]\n${result.value}`,
+              });
+            } catch (err) {
+              console.error('Error parsing DOCX:', err);
+              content.push({
+                type: 'input_text',
+                text: `[Word Document: ${att.originalName}]\n(Error: Could not extract text from DOCX)`,
+              });
+            }
+          }
+          // Handle Excel files
+          else if (att.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                   att.mimetype === 'application/vnd.ms-excel' ||
+                   att.originalName?.endsWith('.xlsx') ||
+                   att.originalName?.endsWith('.xls')) {
+            try {
+              const workbook = XLSX.readFile(filePath);
+              let excelContent = '';
+              workbook.SheetNames.forEach((sheetName) => {
+                const sheet = workbook.Sheets[sheetName];
+                const csvData = XLSX.utils.sheet_to_csv(sheet);
+                excelContent += `\n--- Sheet: ${sheetName} ---\n${csvData}\n`;
+              });
+              content.push({
+                type: 'input_text',
+                text: `[Excel File: ${att.originalName}]${excelContent}`,
+              });
+            } catch (err) {
+              console.error('Error parsing Excel:', err);
+              content.push({
+                type: 'input_text',
+                text: `[Excel File: ${att.originalName}]\n(Error: Could not extract data from Excel file)`,
+              });
+            }
+          }
+          // Handle plain text files
+          else if (att.mimetype?.startsWith('text/') ||
+                   att.originalName?.endsWith('.txt') ||
+                   att.originalName?.endsWith('.md') ||
+                   att.originalName?.endsWith('.json') ||
+                   att.originalName?.endsWith('.csv')) {
+            const fileContent = fs.readFileSync(filePath, 'utf-8');
+            content.push({
+              type: 'input_text',
+              text: `[File: ${att.originalName}]\n${fileContent}`,
+            });
           }
         }
         input.push({ role: 'user', content });

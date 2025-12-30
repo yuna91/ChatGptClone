@@ -3,5 +3,8 @@ node_modules/
 dist/
 build/
 server/data/chats.json
+server/uploads/
 *.log
 .DS_Store
+.claude
+
